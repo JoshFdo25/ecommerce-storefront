@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment Variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+
+# MacOS
+.DS_Store
+
+# Frameworks & Tooling
+dist/
+build/
+.next/
+out/
+.vercel/
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# User Specific Exclusions
+Plan & Task Files/
+frontend/AGENTS.md
+frontend/CLAUDE.md

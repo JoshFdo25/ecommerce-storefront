@@ -1,0 +1,17 @@
+repos:
+  - repo: https://github.com/awslabs/git-secrets
+    rev: master
+    hooks:
+      - id: git-secrets
+        name: git-secrets
+        entry: git-secrets --pre_commit_hook -- "$@"
+        language: script
+  - repo: https://github.com/trufflesecurity/trufflehog
+    rev: v3.63.7
+    hooks:
+      - id: trufflehog
+        name: TruffleHog
+        description: Detect secrets in your data.
+        entry: bash -c 'trufflehog git file://. --since-commit HEAD --only-verified --fail'
+        language: system
+        stages: [commit, push]
