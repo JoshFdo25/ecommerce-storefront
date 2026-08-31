@@ -4,6 +4,13 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import path from 'path';
 import rateLimit from 'express-rate-limit';
+import cookieParser from 'cookie-parser';
+
+import { stripeWebhook } from './controllers/checkoutController';
+import authRoutes from './routes/auth';
+import cartRoutes from './routes/cart';
+import checkoutRoutes from './routes/checkout';
+import { startInventorySweeper } from './jobs/inventorySweeper';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env.local') });
 
@@ -13,31 +20,43 @@ const port = process.env.PORT || 5000;
 // Security & Middlewares
 app.use(helmet());
 
-// NOTE: We will need a specific route with express.raw() for Stripe webhooks before this generic JSON parser
+// NOTE: Stripe webhooks must use raw body buffer for signature verification
+app.post('/api/v1/webhooks/stripe', express.raw({ type: 'application/json' }), stripeWebhook);
+
+// General parsers
 app.use(express.json({ type: ['application/json', 'application/json; charset=utf-8'], limit: '10kb' }));
+app.use(cookieParser());
 
 // Strict CORS baseline for Next.js frontend
 const corsOptions = {
     origin: process.env.NEXT_PUBLIC_API_URL ? process.env.NEXT_PUBLIC_API_URL.replace('/api/v1', '') : 'http://localhost:3000',
-    credentials: true,
+    credentials: true, // required for HttpOnly cookies
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization'],
 };
 app.use(cors(corsOptions));
 
-// Rate Limiting
+// Rate Limiting (Using basic memory store. With Upstash we could drop in rate-limit-redis)
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per `window` (here, per 15 minutes)
+    max: 100, // Limit each IP to 100 requests per `window`
     standardHeaders: true,
     legacyHeaders: false,
 });
 app.use('/api/v1/', apiLimiter);
 
+// Routes
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/cart', cartRoutes);
+app.use('/api/v1/checkout', checkoutRoutes);
+
 // Healthcheck
 app.get('/api/v1/health', (req, res) => {
     res.json({ status: 'ok', message: 'E-Commerce API is running' });
 });
+
+// Start Cron Jobs
+startInventorySweeper();
 
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
