@@ -2,9 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import dotenv from 'dotenv';
+import path from 'path';
 import rateLimit from 'express-rate-limit';
 
-dotenv.config({ path: '../.env.local' });
+dotenv.config({ path: path.resolve(__dirname, '../../.env.local') });
 
 const app = express();
 const port = process.env.PORT || 5000;
