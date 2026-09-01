@@ -10,6 +10,8 @@ import { stripeWebhook } from './controllers/checkoutController';
 import authRoutes from './routes/auth';
 import cartRoutes from './routes/cart';
 import checkoutRoutes from './routes/checkout';
+import catalogRoutes from './routes/catalog';
+import webhookRoutes from './routes/webhooks';
 import { startInventorySweeper } from './jobs/inventorySweeper';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env.local') });
@@ -49,6 +51,8 @@ app.use('/api/v1/', apiLimiter);
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/cart', cartRoutes);
 app.use('/api/v1/checkout', checkoutRoutes);
+app.use('/api/v1/catalog', catalogRoutes);
+app.use('/api/v1/webhooks', webhookRoutes);
 
 // Healthcheck
 app.get('/api/v1/health', (req, res) => {

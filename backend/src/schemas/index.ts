@@ -36,3 +36,12 @@ export const CheckoutSchema = z.object({
     // Note: totalAmount is deliberately EXCLUDED to prevent payload manipulation. 
     // The server calculates the price dynamically.
 }).strict();
+
+export const SearchQuerySchema = z.object({
+    q: z.string().optional().default(""), // search query string
+    limit: z.coerce.number().int().min(1).max(100).optional().default(20),
+    offset: z.coerce.number().int().min(0).optional().default(0),
+    categoryId: z.string().uuid().optional(),
+    minPrice: z.coerce.number().int().min(0).optional(),
+    maxPrice: z.coerce.number().int().min(0).optional(),
+}).strict();
