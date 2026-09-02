@@ -2,7 +2,12 @@ import { z } from 'zod';
 
 export const RegisterSchema = z.object({
     email: z.string().email(),
-    password: z.string().min(8, "Password must be at least 8 characters long"),
+    password: z.string()
+        .min(8, "Password must be at least 8 characters long")
+        .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+        .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+        .regex(/[0-9]/, "Password must contain at least one number")
+        .regex(/[^a-zA-Z0-9]/, "Password must contain at least one special character"),
     firstName: z.string().max(100).optional(),
     lastName: z.string().max(100).optional(),
 }).strict();
@@ -11,6 +16,21 @@ export const LoginSchema = z.object({
     email: z.string().email(),
     password: z.string(),
     guestSessionId: z.string().optional()
+}).strict();
+
+export const ForgotPasswordSchema = z.object({
+    email: z.string().email(),
+}).strict();
+
+export const ResetPasswordSchema = z.object({
+    email: z.string().email(),
+    token: z.string(),
+    newPassword: z.string()
+        .min(8, "Password must be at least 8 characters long")
+        .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+        .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+        .regex(/[0-9]/, "Password must contain at least one number")
+        .regex(/[^a-zA-Z0-9]/, "Password must contain at least one special character"),
 }).strict();
 
 export const CartItemSchema = z.object({

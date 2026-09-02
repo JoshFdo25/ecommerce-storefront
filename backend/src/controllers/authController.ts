@@ -8,6 +8,9 @@ import { eq } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
 import { redisClient } from '../lib/redis';
 import { withUserTransaction } from '../db/utils';
+import { Resend } from 'resend';
+
+const resend = new Resend(process.env.RESEND_API_KEY || 're_123456789');
 
 // Helper to generate tokens
 const generateTokens = (user: { id: string, role: string }) => {
@@ -161,6 +164,62 @@ export const refresh = async (req: Request, res: Response) => {
         return res.json({ accessToken: newTokens.accessToken, refreshToken: newTokens.refreshToken });
     } catch (error) {
         console.error('Refresh Error:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const forgotPassword = async (req: Request, res: Response) => {
+    try {
+        const { email } = req.body;
+
+        const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
+        
+        if (user && !user.isDeleted) {
+            const token = crypto.randomBytes(32).toString('hex');
+            const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+            
+            await redisClient.set(`reset_token:${email}`, hashedToken, 'EX', 900); // 15 mins
+
+            // Calculate frontend URL. In dev, NEXT_PUBLIC_API_URL is http://localhost:5000/api/v1
+            // So we default to http://localhost:3000 if not easily parseable.
+            const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+            const resetLink = `${frontendUrl}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
+            
+            await resend.emails.send({
+                from: 'Acme Store <onboarding@resend.dev>',
+                to: email,
+                subject: 'Password Reset Request',
+                html: `<p>Click <a href="${resetLink}">here</a> to reset your password. This link expires in 15 minutes.</p>`
+            });
+        }
+
+        // Generic response
+        return res.json({ message: 'If an account with that email exists, we sent a password reset link.' });
+    } catch (error) {
+        console.error('Forgot Password Error:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const resetPassword = async (req: Request, res: Response) => {
+    try {
+        const { email, token, newPassword } = req.body;
+
+        const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+        const storedToken = await redisClient.get(`reset_token:${email}`);
+
+        if (!storedToken || storedToken !== hashedToken) {
+            return res.status(400).json({ error: 'Invalid or expired reset token' });
+        }
+
+        const newPasswordHash = await bcrypt.hash(newPassword, 12);
+        
+        await db.update(users).set({ passwordHash: newPasswordHash }).where(eq(users.email, email));
+        await redisClient.del(`reset_token:${email}`);
+
+        return res.json({ message: 'Password has been reset successfully.' });
+    } catch (error) {
+        console.error('Reset Password Error:', error);
         return res.status(500).json({ error: 'Internal Server Error' });
     }
 };
