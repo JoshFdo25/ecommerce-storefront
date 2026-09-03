@@ -6,11 +6,10 @@ import { db } from '../db';
 import { users, userProfiles, cartItems, products } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
+import { sql } from 'drizzle-orm';
 import { redisClient } from '../lib/redis';
 import { withUserTransaction } from '../db/utils';
-import { Resend } from 'resend';
-
-const resend = new Resend(process.env.RESEND_API_KEY || 're_123456789');
+import { sendEmail } from '../lib/email';
 
 // Helper to generate tokens
 const generateTokens = (user: { id: string, role: string }) => {
@@ -35,14 +34,57 @@ export const register = async (req: Request, res: Response) => {
     try {
         const { email, password, firstName, lastName } = req.body;
 
-        // Check if user exists
+        // Check if user already exists
         const existingUser = await db.select().from(users).where(eq(users.email, email)).limit(1);
         if (existingUser.length > 0) {
             return res.status(409).json({ error: 'Email already in use' });
         }
 
-        // Hash password
+        // Generate 6-digit OTP
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+        // Hash password before putting in Redis
         const passwordHash = await bcrypt.hash(password, 12);
+
+        // Store pending user in Redis
+        const pendingUser = {
+            email,
+            passwordHash,
+            firstName,
+            lastName
+        };
+        
+        await redisClient.set(`pending_user:${email}`, JSON.stringify({ otp, user: pendingUser }), 'EX', 900); // 15 mins
+
+        // Send OTP email
+        await sendEmail({
+            to: email,
+            subject: 'Verify your Acme Store account',
+            html: `<h2>Welcome to Acme Store!</h2><p>Your verification code is: <strong>${otp}</strong></p><p>This code expires in 15 minutes.</p>`
+        });
+
+        return res.status(200).json({ message: 'OTP sent to email' });
+    } catch (error) {
+        console.error('Registration Error:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const verifyEmail = async (req: Request, res: Response) => {
+    try {
+        const { email, otp, guestSessionId } = req.body;
+
+        const pendingStr = await redisClient.get(`pending_user:${email}`);
+        if (!pendingStr) {
+            return res.status(400).json({ error: 'OTP expired or invalid' });
+        }
+
+        const pendingData = JSON.parse(pendingStr);
+        if (pendingData.otp !== otp) {
+            return res.status(400).json({ error: 'Incorrect OTP' });
+        }
+
+        const { passwordHash, firstName, lastName } = pendingData.user;
 
         // Transaction to create User and Profile
         const newUser = await db.transaction(async (tx) => {
@@ -57,16 +99,48 @@ export const register = async (req: Request, res: Response) => {
             return user;
         });
 
+        // Delete pending user
+        await redisClient.del(`pending_user:${email}`);
+
         const { accessToken, refreshToken } = generateTokens(newUser);
         
         // Hash refresh token for storage
         const hashedToken = crypto.createHash('sha256').update(refreshToken).digest('hex');
         await redisClient.set(`refresh_token:${newUser.id}`, hashedToken, 'EX', 1209600); // 14 days
 
+        // Guest Cart Migration logic
+        if (guestSessionId) {
+            const redisKey = `guest_cart:${guestSessionId}`;
+            const guestCart = await redisClient.hgetall(redisKey);
+
+            if (Object.keys(guestCart).length > 0) {
+                await withUserTransaction(newUser.id, async (tx) => {
+                    for (const [productId, dataStr] of Object.entries(guestCart)) {
+                        const data = JSON.parse(dataStr);
+                        
+                        const productResult = await tx.execute(sql`
+                            SELECT stock_quantity FROM products WHERE id = ${productId} FOR UPDATE
+                        `);
+                        const availableStock = productResult.rows[0]?.stock_quantity || 0;
+                        
+                        if (availableStock > 0) {
+                            await tx.execute(sql`
+                                INSERT INTO cart_items (user_id, product_id, quantity)
+                                VALUES (${newUser.id}, ${productId}, LEAST(${data.quantity}::int, ${availableStock}::int))
+                                ON CONFLICT (user_id, product_id)
+                                DO UPDATE SET quantity = LEAST(cart_items.quantity + EXCLUDED.quantity, ${availableStock}::int)
+                            `);
+                        }
+                    }
+                });
+                await redisClient.del(redisKey);
+            }
+        }
+
         setAuthCookies(res, accessToken, refreshToken);
         return res.status(201).json({ accessToken, refreshToken, user: newUser });
     } catch (error) {
-        console.error('Registration Error:', error);
+        console.error('Verify Email Error:', error);
         return res.status(500).json({ error: 'Internal Server Error' });
     }
 };
@@ -185,8 +259,7 @@ export const forgotPassword = async (req: Request, res: Response) => {
             const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
             const resetLink = `${frontendUrl}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
             
-            await resend.emails.send({
-                from: 'Acme Store <onboarding@resend.dev>',
+            await sendEmail({
                 to: email,
                 subject: 'Password Reset Request',
                 html: `<p>Click <a href="${resetLink}">here</a> to reset your password. This link expires in 15 minutes.</p>`

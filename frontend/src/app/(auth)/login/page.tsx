@@ -8,10 +8,10 @@ import { Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { motion } from 'framer-motion';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { FloatingInput } from '@/components/ui/floating-input';
 import { LoginSchema, LoginFormData } from '@/lib/validations';
 import { apiClient } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
@@ -68,22 +68,25 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-140px)] items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-8 rounded-xl border bg-card p-8 shadow-sm">
-        <div className="space-y-2 text-center">
-          <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
-          <p className="text-sm text-muted-foreground">
+    <motion.div 
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="space-y-8"
+    >
+      <div className="space-y-2 text-center">
+        <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
+        <p className="text-sm text-muted-foreground">
             Enter your email to sign in to your account
           </p>
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
+            <FloatingInput
               id="email"
+              label="Email"
               type="email"
-              placeholder="m@example.com"
               {...register('email')}
             />
             {errors.email && (
@@ -92,31 +95,31 @@ export default function LoginPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <div className="relative">
-              <Input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                {...register('password')}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                onClick={() => setShowPassword(!showPassword)}
-                tabIndex={-1}
-              >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                ) : (
-                  <Eye className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                )}
-                <span className="sr-only">
-                  {showPassword ? 'Hide password' : 'Show password'}
-                </span>
-              </Button>
-            </div>
+            <FloatingInput
+              id="password"
+              label="Password"
+              type={showPassword ? 'text' : 'password'}
+              {...register('password')}
+              endAdornment={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  )}
+                  <span className="sr-only">
+                    {showPassword ? 'Hide password' : 'Show password'}
+                  </span>
+                </Button>
+              }
+            />
             {errors.password && (
               <p className="text-sm text-destructive">{errors.password.message}</p>
             )}
@@ -127,18 +130,23 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <div className="flex justify-center py-2 min-h-[70px]">
-            {isMounted ? (
-              <Turnstile
-                siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
-                onSuccess={(token) => setToken(token)}
-              />
-            ) : (
-              <div className="w-[300px] h-[65px] bg-muted animate-pulse rounded-md" />
-            )}
+          <div className="flex justify-center py-2">
+            <div className="w-[300px] h-[65px] relative">
+              {!token && (
+                <div className="absolute inset-0 bg-muted animate-pulse rounded-md pointer-events-none" />
+              )}
+              {isMounted && (
+                <div className="absolute inset-0">
+                  <Turnstile
+                    siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                    onSuccess={(token) => setToken(token)}
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
-          <Button type="submit" className="w-full" disabled={isLoading || !token}>
+          <Button type="submit" className="w-full" disabled={!isMounted ? false : (isLoading || !token)}>
             {isLoading ? 'Signing in...' : 'Sign In'}
           </Button>
         </form>
@@ -149,7 +157,6 @@ export default function LoginPage() {
             Sign up
           </Link>
         </div>
-      </div>
-    </div>
+    </motion.div>
   );
 }

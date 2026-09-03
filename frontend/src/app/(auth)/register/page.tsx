@@ -8,10 +8,15 @@ import { Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
+import { motion } from 'framer-motion';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { FloatingInput } from '@/components/ui/floating-input';
+import {
+  InputOTP,
+  InputOTPGroup,
+  InputOTPSlot,
+} from "@/components/ui/input-otp";
 import { RegisterSchema, RegisterFormData } from '@/lib/validations';
 import { apiClient } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
@@ -25,6 +30,9 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isMounted, setIsMounted] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [step, setStep] = useState<'form' | 'otp'>('form');
+  const [registeredEmail, setRegisteredEmail] = useState<string>('');
+  const [otpValue, setOtpValue] = useState('');
 
   useEffect(() => {
     setIsMounted(true);
@@ -82,10 +90,9 @@ export default function RegisterPage() {
 
       const response = await apiClient.post('/auth/register', payload);
       
-      setAuth(response.data.user);
-      
-      toast.success('Account created successfully!');
-      router.push('/dashboard');
+      setRegisteredEmail(data.email);
+      setStep('otp');
+      toast.success('Verification code sent to your email!');
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to register');
     } finally {
@@ -93,9 +100,92 @@ export default function RegisterPage() {
     }
   };
 
+  const onVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (otpValue.length !== 6) {
+      toast.error('Please enter a valid 6-digit code');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const guestSessionId = getGuestSessionId();
+      const payload = {
+        email: registeredEmail,
+        otp: otpValue,
+        guestSessionId: guestSessionId || undefined,
+      };
+
+      const response = await apiClient.post('/auth/verify-email', payload);
+      
+      setAuth(response.data.user);
+      
+      toast.success('Account created successfully!');
+      router.push('/dashboard');
+    } catch (error: any) {
+      toast.error(error.response?.data?.error || 'Invalid verification code');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (step === 'otp') {
+    return (
+      <motion.div 
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
+        className="space-y-8"
+      >
+          <div className="space-y-2 text-center">
+            <h1 className="text-3xl font-bold tracking-tight">Check your email</h1>
+            <p className="text-sm text-muted-foreground">
+              We've sent a 6-digit code to <strong>{registeredEmail}</strong>
+            </p>
+          </div>
+
+          <form onSubmit={onVerifyOtp} className="space-y-6">
+            <div className="flex justify-center">
+              <InputOTP
+                maxLength={6}
+                value={otpValue}
+                onChange={setOtpValue}
+                disabled={isLoading}
+              >
+                <InputOTPGroup>
+                  <InputOTPSlot index={0} />
+                  <InputOTPSlot index={1} />
+                  <InputOTPSlot index={2} />
+                  <InputOTPSlot index={3} />
+                  <InputOTPSlot index={4} />
+                  <InputOTPSlot index={5} />
+                </InputOTPGroup>
+              </InputOTP>
+            </div>
+
+            <Button type="submit" className="w-full" disabled={!isMounted ? false : (isLoading || otpValue.length !== 6)}>
+              {isLoading ? 'Verifying...' : 'Verify Email'}
+            </Button>
+          </form>
+          <div className="text-center text-sm text-muted-foreground pt-4">
+            <button
+              onClick={() => setStep('form')}
+              className="text-primary hover:underline"
+            >
+              Go back
+            </button>
+          </div>
+      </motion.div>
+    );
+  }
+
   return (
-    <div className="flex min-h-[calc(100vh-140px)] items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-8 rounded-xl border bg-card p-8 shadow-sm">
+    <motion.div 
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="space-y-8"
+    >
         <div className="space-y-2 text-center">
           <h1 className="text-3xl font-bold tracking-tight">Create an account</h1>
           <p className="text-sm text-muted-foreground">
@@ -106,15 +196,13 @@ export default function RegisterPage() {
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="firstName">First name</Label>
-              <Input id="firstName" {...register('firstName')} />
+              <FloatingInput id="firstName" label="First name" {...register('firstName')} />
               {errors.firstName && (
                 <p className="text-sm text-destructive">{errors.firstName.message}</p>
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="lastName">Last name</Label>
-              <Input id="lastName" {...register('lastName')} />
+              <FloatingInput id="lastName" label="Last name" {...register('lastName')} />
               {errors.lastName && (
                 <p className="text-sm text-destructive">{errors.lastName.message}</p>
               )}
@@ -122,11 +210,10 @@ export default function RegisterPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
+            <FloatingInput
               id="email"
+              label="Email"
               type="email"
-              placeholder="m@example.com"
               {...register('email')}
             />
             {errors.email && (
@@ -135,31 +222,31 @@ export default function RegisterPage() {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <div className="relative">
-              <Input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                {...register('password')}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                onClick={() => setShowPassword(!showPassword)}
-                tabIndex={-1}
-              >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                ) : (
-                  <Eye className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                )}
-                <span className="sr-only">
-                  {showPassword ? 'Hide password' : 'Show password'}
-                </span>
-              </Button>
-            </div>
+            <FloatingInput
+              id="password"
+              label="Password"
+              type={showPassword ? 'text' : 'password'}
+              {...register('password')}
+              endAdornment={
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                  tabIndex={-1}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  ) : (
+                    <Eye className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  )}
+                  <span className="sr-only">
+                    {showPassword ? 'Hide password' : 'Show password'}
+                  </span>
+                </Button>
+              }
+            />
             {/* Password Strength Meter */}
             <div className="space-y-1 mt-2">
               <div className="flex gap-1 h-1.5 w-full">
@@ -183,18 +270,23 @@ export default function RegisterPage() {
             )}
           </div>
 
-          <div className="flex justify-center py-2 min-h-[70px]">
-            {isMounted ? (
-              <Turnstile
-                siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
-                onSuccess={(token) => setToken(token)}
-              />
-            ) : (
-              <div className="w-[300px] h-[65px] bg-muted animate-pulse rounded-md" />
-            )}
+          <div className="flex justify-center py-2">
+            <div className="w-[300px] h-[65px] relative">
+              {!token && (
+                <div className="absolute inset-0 bg-muted animate-pulse rounded-md pointer-events-none" />
+              )}
+              {isMounted && (
+                <div className="absolute inset-0">
+                  <Turnstile
+                    siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                    onSuccess={(token) => setToken(token)}
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
-          <Button type="submit" className="w-full" disabled={isLoading || !token}>
+          <Button type="submit" className="w-full" disabled={!isMounted ? false : (isLoading || !token)}>
             {isLoading ? 'Creating account...' : 'Create Account'}
           </Button>
         </form>
@@ -205,7 +297,6 @@ export default function RegisterPage() {
             Sign in
           </Link>
         </div>
-      </div>
-    </div>
+    </motion.div>
   );
 }

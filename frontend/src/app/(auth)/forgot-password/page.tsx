@@ -6,10 +6,10 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Turnstile } from '@marsidev/react-turnstile';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { motion } from 'framer-motion';
 
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { FloatingInput } from '@/components/ui/floating-input';
 import { ForgotPasswordSchema, ForgotPasswordFormData } from '@/lib/validations';
 import { apiClient } from '@/lib/api';
 
@@ -76,8 +76,12 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-[calc(100vh-140px)] items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-8 rounded-xl border bg-card p-8 shadow-sm">
+    <motion.div 
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="space-y-8"
+    >
         <div className="space-y-2 text-center">
           <h1 className="text-3xl font-bold tracking-tight">Reset password</h1>
           <p className="text-sm text-muted-foreground">
@@ -87,11 +91,10 @@ export default function ForgotPasswordPage() {
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
+            <FloatingInput
               id="email"
+              label="Email"
               type="email"
-              placeholder="m@example.com"
               {...register('email')}
             />
             {errors.email && (
@@ -99,18 +102,23 @@ export default function ForgotPasswordPage() {
             )}
           </div>
 
-          <div className="flex justify-center py-2 min-h-[70px]">
-            {isMounted ? (
-              <Turnstile
-                siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
-                onSuccess={(token) => setToken(token)}
-              />
-            ) : (
-              <div className="w-[300px] h-[65px] bg-muted animate-pulse rounded-md" />
-            )}
+          <div className="flex justify-center py-2">
+            <div className="w-[300px] h-[65px] relative">
+              {!token && (
+                <div className="absolute inset-0 bg-muted animate-pulse rounded-md pointer-events-none" />
+              )}
+              {isMounted && (
+                <div className="absolute inset-0">
+                  <Turnstile
+                    siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
+                    onSuccess={(token) => setToken(token)}
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
-          <Button type="submit" className="w-full" disabled={isLoading || !token}>
+          <Button type="submit" className="w-full" disabled={!isMounted ? false : (isLoading || !token)}>
             {isLoading ? 'Sending link...' : 'Send Reset Link'}
           </Button>
         </form>
@@ -121,7 +129,6 @@ export default function ForgotPasswordPage() {
             Sign in
           </Link>
         </div>
-      </div>
-    </div>
+    </motion.div>
   );
 }

@@ -10,16 +10,26 @@ export const RegisterSchema = z.object({
         .regex(/[^a-zA-Z0-9]/, "Password must contain at least one special character"),
     firstName: z.string().max(100).optional(),
     lastName: z.string().max(100).optional(),
+    guestSessionId: z.string().optional(),
+    cfToken: z.string().optional()
 }).strict();
 
 export const LoginSchema = z.object({
     email: z.string().email(),
     password: z.string(),
-    guestSessionId: z.string().optional()
+    guestSessionId: z.string().optional(),
+    cfToken: z.string().optional()
 }).strict();
 
 export const ForgotPasswordSchema = z.object({
     email: z.string().email(),
+    cfToken: z.string().optional()
+}).strict();
+
+export const VerifyEmailSchema = z.object({
+    email: z.string().email(),
+    otp: z.string().length(6),
+    guestSessionId: z.string().optional()
 }).strict();
 
 export const ResetPasswordSchema = z.object({
