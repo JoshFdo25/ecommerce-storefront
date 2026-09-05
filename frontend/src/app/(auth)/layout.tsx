@@ -55,7 +55,7 @@ export default function AuthLayout({
                   style={{ backgroundImage: `url(${image.src})` }}
                 />
                 <div className="absolute inset-0 bg-black/40" />
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-12 text-white">
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-center p-12 text-white select-none">
                   <h2 className="text-4xl font-bold mb-4 tracking-tight">{image.title}</h2>
                   <p className="text-lg text-zinc-200 max-w-md">{image.subtitle}</p>
                 </div>
@@ -68,14 +68,14 @@ export default function AuthLayout({
       {/* Right Pane - Auth Forms (100% width on mobile, 50% width on desktop) */}
       <div className="w-full lg:w-1/2 relative flex flex-col justify-center bg-background min-h-screen">
         {/* UX Escape Hatch */}
-        <Link 
-          href="/" 
+        <Link
+          href="/"
           className="absolute top-6 left-6 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           Back to Store
         </Link>
-        
+
         {/* Container gracefully centers vertically and horizontally */}
         <div className="w-full max-w-md mx-auto p-8">
           {children}

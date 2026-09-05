@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { useAuthStore } from '@/store/auth';
 
 export const apiClient = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1',
@@ -28,8 +29,8 @@ apiClient.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // Avoid infinite loop if refresh token itself fails
-    if (originalRequest.url === '/auth/refresh') {
+    // Avoid infinite loop if refresh token itself fails, or if login fails
+    if (originalRequest.url === '/auth/refresh' || originalRequest.url === '/auth/login') {
       return Promise.reject(error);
     }
 
@@ -68,8 +69,9 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest);
       } catch (err) {
         processQueue(err, null);
-        // Optional: Dispatch logout event or redirect to login
-        // window.location.href = '/login';
+        // Dispatch logout event and redirect to login
+        useAuthStore.getState().logout();
+        window.location.href = '/login';
         return Promise.reject(err);
       } finally {
         isRefreshing = false;

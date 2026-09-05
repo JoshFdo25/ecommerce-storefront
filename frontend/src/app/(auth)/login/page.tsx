@@ -20,6 +20,7 @@ import { useCartStore } from '@/store/cart';
 export default function LoginPage() {
   const router = useRouter();
   const setAuth = useAuthStore((state) => state.setAuth);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const getGuestSessionId = useCartStore((state) => state.getGuestSessionId);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -28,7 +29,10 @@ export default function LoginPage() {
 
   useEffect(() => {
     setIsMounted(true);
-  }, []);
+    if (isAuthenticated) {
+      router.replace('/dashboard');
+    }
+  }, [isAuthenticated, router]);
   const {
     register,
     handleSubmit,

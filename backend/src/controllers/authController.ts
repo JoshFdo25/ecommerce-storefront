@@ -6,7 +6,6 @@ import { db } from '../db';
 import { users, userProfiles, cartItems, products } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import { sql } from 'drizzle-orm';
-import { sql } from 'drizzle-orm';
 import { redisClient } from '../lib/redis';
 import { withUserTransaction } from '../db/utils';
 import { sendEmail } from '../lib/email';
@@ -53,7 +52,7 @@ export const register = async (req: Request, res: Response) => {
             firstName,
             lastName
         };
-        
+
         await redisClient.set(`pending_user:${email}`, JSON.stringify({ otp, user: pendingUser }), 'EX', 900); // 15 mins
 
         // Send OTP email
@@ -89,13 +88,13 @@ export const verifyEmail = async (req: Request, res: Response) => {
         // Transaction to create User and Profile
         const newUser = await db.transaction(async (tx) => {
             const [user] = await tx.insert(users).values({ email, passwordHash }).returning({ id: users.id, role: users.role });
-            
+
             await tx.insert(userProfiles).values({
                 userId: user.id,
                 firstName: firstName || null,
                 lastName: lastName || null,
             });
-            
+
             return user;
         });
 
@@ -103,7 +102,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
         await redisClient.del(`pending_user:${email}`);
 
         const { accessToken, refreshToken } = generateTokens(newUser);
-        
+
         // Hash refresh token for storage
         const hashedToken = crypto.createHash('sha256').update(refreshToken).digest('hex');
         await redisClient.set(`refresh_token:${newUser.id}`, hashedToken, 'EX', 1209600); // 14 days
@@ -117,12 +116,12 @@ export const verifyEmail = async (req: Request, res: Response) => {
                 await withUserTransaction(newUser.id, async (tx) => {
                     for (const [productId, dataStr] of Object.entries(guestCart)) {
                         const data = JSON.parse(dataStr);
-                        
+
                         const productResult = await tx.execute(sql`
                             SELECT stock_quantity FROM products WHERE id = ${productId} FOR UPDATE
                         `);
                         const availableStock = productResult.rows[0]?.stock_quantity || 0;
-                        
+
                         if (availableStock > 0) {
                             await tx.execute(sql`
                                 INSERT INTO cart_items (user_id, product_id, quantity)
@@ -150,7 +149,7 @@ export const login = async (req: Request, res: Response) => {
         const { email, password, guestSessionId } = req.body;
 
         const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-        
+
         if (!user || user.isDeleted) {
             return res.status(401).json({ error: 'Invalid credentials' });
         }
@@ -161,7 +160,7 @@ export const login = async (req: Request, res: Response) => {
         }
 
         const { accessToken, refreshToken } = generateTokens(user);
-        
+
         const hashedToken = crypto.createHash('sha256').update(refreshToken).digest('hex');
         await redisClient.set(`refresh_token:${user.id}`, hashedToken, 'EX', 1209600);
 
@@ -175,13 +174,13 @@ export const login = async (req: Request, res: Response) => {
                 await withUserTransaction(user.id, async (tx) => {
                     for (const [productId, dataStr] of Object.entries(guestCart)) {
                         const data = JSON.parse(dataStr);
-                        
+
                         // FOR UPDATE lock to prevent inventory race conditions during cart migration
                         const productResult = await tx.execute(sql`
                             SELECT stock_quantity FROM products WHERE id = ${productId} FOR UPDATE
                         `);
                         const availableStock = productResult.rows[0]?.stock_quantity || 0;
-                        
+
                         if (availableStock > 0) {
                             await tx.execute(sql`
                                 INSERT INTO cart_items (user_id, product_id, quantity)
@@ -206,10 +205,14 @@ export const login = async (req: Request, res: Response) => {
 
 export const refresh = async (req: Request, res: Response) => {
     try {
-        const { refreshToken, userId } = req.body; 
+        const { refreshToken } = req.body || {};
         // In a real app, you might extract the token from cookies.
         // We'll allow either body or cookie for flexibility
         const tokenToVerify = refreshToken || req.cookies?.refresh_token;
+
+        const accessToken = req.cookies?.access_token;
+        const decoded = jwt.decode(accessToken) as { id: string } | null;
+        const userId = decoded?.id;
 
         if (!tokenToVerify || !userId) {
             return res.status(400).json({ error: 'Missing token or user ID' });
@@ -229,7 +232,7 @@ export const refresh = async (req: Request, res: Response) => {
         }
 
         const newTokens = generateTokens(user);
-        
+
         // Rotate token
         const newHashedToken = crypto.createHash('sha256').update(newTokens.refreshToken).digest('hex');
         await redisClient.set(`refresh_token:${user.id}`, newHashedToken, 'EX', 1209600);
@@ -247,18 +250,18 @@ export const forgotPassword = async (req: Request, res: Response) => {
         const { email } = req.body;
 
         const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
-        
+
         if (user && !user.isDeleted) {
             const token = crypto.randomBytes(32).toString('hex');
             const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-            
+
             await redisClient.set(`reset_token:${email}`, hashedToken, 'EX', 900); // 15 mins
 
             // Calculate frontend URL. In dev, NEXT_PUBLIC_API_URL is http://localhost:5000/api/v1
             // So we default to http://localhost:3000 if not easily parseable.
             const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
             const resetLink = `${frontendUrl}/reset-password?token=${token}&email=${encodeURIComponent(email)}`;
-            
+
             await sendEmail({
                 to: email,
                 subject: 'Password Reset Request',
@@ -286,13 +289,39 @@ export const resetPassword = async (req: Request, res: Response) => {
         }
 
         const newPasswordHash = await bcrypt.hash(newPassword, 12);
-        
+
         await db.update(users).set({ passwordHash: newPasswordHash }).where(eq(users.email, email));
         await redisClient.del(`reset_token:${email}`);
 
         return res.json({ message: 'Password has been reset successfully.' });
     } catch (error) {
         console.error('Reset Password Error:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const logout = async (req: Request, res: Response) => {
+    try {
+        const userId = (req as any).user?.id;
+        
+        if (userId) {
+            // Invalidate the refresh token in Redis
+            await redisClient.del(`refresh_token:${userId}`);
+        }
+
+        const cookieOptions = {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict' as const,
+            domain: process.env.COOKIE_DOMAIN || 'localhost',
+        };
+
+        res.clearCookie('access_token', cookieOptions);
+        res.clearCookie('refresh_token', cookieOptions);
+
+        return res.json({ message: 'Logged out successfully' });
+    } catch (error) {
+        console.error('Logout Error:', error);
         return res.status(500).json({ error: 'Internal Server Error' });
     }
 };

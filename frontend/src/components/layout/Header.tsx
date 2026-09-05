@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { ShoppingCart, User, Search, Menu } from 'lucide-react';
 import { useCartStore } from '../../store/cart';
 import { useAuthStore } from '../../store/auth';
@@ -17,7 +18,13 @@ import { useEffect, useState } from 'react';
 export function Header() {
   const { items, setIsOpen } = useCartStore();
   const { isAuthenticated, user, logout } = useAuthStore();
+  const router = useRouter();
   const [mounted, setMounted] = useState(false);
+
+  const handleLogout = async () => {
+    await logout();
+    router.push('/login');
+  };
 
   useEffect(() => {
     setMounted(true);
@@ -59,7 +66,7 @@ export function Header() {
                     Dashboard
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={logout}>
+                <DropdownMenuItem onClick={handleLogout}>
                   Log out
                 </DropdownMenuItem>
               </DropdownMenuContent>

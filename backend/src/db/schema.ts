@@ -21,6 +21,7 @@ export const userProfiles = pgTable('user_profiles', {
     firstName: varchar('first_name', { length: 100 }),
     lastName: varchar('last_name', { length: 100 }),
     phone: varchar('phone', { length: 50 }),
+    avatarUrl: varchar('avatar_url', { length: 255 }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });

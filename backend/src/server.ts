@@ -12,6 +12,8 @@ import cartRoutes from './routes/cart';
 import checkoutRoutes from './routes/checkout';
 import catalogRoutes from './routes/catalog';
 import webhookRoutes from './routes/webhooks';
+import profileRoutes from './routes/profileRoutes';
+import productRoutes from './routes/productRoutes';
 import { startInventorySweeper } from './jobs/inventorySweeper';
 
 dotenv.config({ path: path.resolve(__dirname, '../../.env.local') });
@@ -53,6 +55,8 @@ app.use('/api/v1/cart', cartRoutes);
 app.use('/api/v1/checkout', checkoutRoutes);
 app.use('/api/v1/catalog', catalogRoutes);
 app.use('/api/v1/webhooks', webhookRoutes);
+app.use('/api/v1/profile', profileRoutes);
+app.use('/api/v1/products', productRoutes);
 
 // Healthcheck
 app.get('/api/v1/health', (req, res) => {

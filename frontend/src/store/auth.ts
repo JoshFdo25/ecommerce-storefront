@@ -1,4 +1,6 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { apiClient } from '../lib/api';
 
 interface User {
   id: string;
@@ -12,9 +14,25 @@ interface AuthState {
   logout: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  isAuthenticated: false,
-  user: null,
-  setAuth: (user) => set({ isAuthenticated: !!user, user }),
-  logout: () => set({ isAuthenticated: false, user: null }),
-}));
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      isAuthenticated: false,
+      user: null,
+      setAuth: (user) => set({ isAuthenticated: !!user, user }),
+      logout: async () => {
+        try {
+          await apiClient.post('/auth/logout');
+        } catch (error) {
+          console.error('Logout failed on backend:', error);
+        } finally {
+          set({ isAuthenticated: false, user: null });
+        }
+      },
+    }),
+    {
+      name: 'auth-storage', // unique name
+      storage: createJSONStorage(() => localStorage), 
+    }
+  )
+);
