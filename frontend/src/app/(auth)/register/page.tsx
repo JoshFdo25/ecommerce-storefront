@@ -284,6 +284,8 @@ export default function RegisterPage() {
                   <Turnstile
                     siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
                     onSuccess={(token) => setToken(token)}
+                    options={{ action: 'register' }}
+                    scriptOptions={{ appendTo: 'body' }}
                   />
                 </div>
               )}

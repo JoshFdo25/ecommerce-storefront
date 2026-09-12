@@ -1,5 +1,6 @@
 import { db } from '../db';
-import { products } from '../db/schema';
+import { products, categories } from '../db/schema';
+import { eq } from 'drizzle-orm';
 import { meiliClient, setupMeiliIndex } from '../lib/meilisearch';
 
 export async function syncAllProductsToSearch() {
@@ -8,8 +9,14 @@ export async function syncAllProductsToSearch() {
     
     await setupMeiliIndex();
 
-    // Fetch all products
-    const allProducts = await db.select().from(products);
+    // Fetch all products with their categories
+    const allProducts = await db
+      .select({
+        product: products,
+        categoryName: categories.name,
+      })
+      .from(products)
+      .leftJoin(categories, eq(products.categoryId, categories.id));
     
     if (allProducts.length === 0) {
       console.log('No products found in DB to sync.');
@@ -19,9 +26,10 @@ export async function syncAllProductsToSearch() {
     const index = meiliClient.index('products');
     
     // Map Drizzle products to Meilisearch docs
-    const docs = allProducts.map(p => ({
+    const docs = allProducts.map(({ product: p, categoryName }) => ({
       id: p.id,
       category_id: p.categoryId,
+      category_name: categoryName,
       name: p.name,
       slug: p.slug,
       description: p.description,

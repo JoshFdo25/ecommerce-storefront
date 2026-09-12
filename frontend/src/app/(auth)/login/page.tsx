@@ -144,6 +144,8 @@ export default function LoginPage() {
                   <Turnstile
                     siteKey={process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY!}
                     onSuccess={(token) => setToken(token)}
+                    options={{ action: 'login' }}
+                    scriptOptions={{ appendTo: 'body' }}
                   />
                 </div>
               )}

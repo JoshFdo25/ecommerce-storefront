@@ -16,6 +16,7 @@ export async function setupMeiliIndex() {
   // Set filterable attributes for faceted search
   await index.updateFilterableAttributes([
     'category_id',
+    'category_name',
     'price',
     'is_active'
   ]);
