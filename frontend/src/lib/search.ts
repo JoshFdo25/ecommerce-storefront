@@ -1,12 +1,9 @@
-import { instantMeiliSearch } from '@meilisearch/instant-meilisearch';
+import algoliasearch from 'algoliasearch/lite';
 
-const MEILISEARCH_URL = process.env.NEXT_PUBLIC_MEILISEARCH_URL || 'http://127.0.0.1:7700';
-const MEILISEARCH_SEARCH_KEY = process.env.NEXT_PUBLIC_MEILISEARCH_SEARCH_KEY || '';
+const ALGOLIA_APP_ID = process.env.NEXT_PUBLIC_ALGOLIA_APP_ID || '';
+const ALGOLIA_SEARCH_KEY = process.env.NEXT_PUBLIC_ALGOLIA_SEARCH_KEY || '';
 
-export const { searchClient } = instantMeiliSearch(
-  MEILISEARCH_URL,
-  MEILISEARCH_SEARCH_KEY,
-  {
-    primaryKey: 'id',
-  }
+export const searchClient = algoliasearch(
+  ALGOLIA_APP_ID,
+  ALGOLIA_SEARCH_KEY
 );

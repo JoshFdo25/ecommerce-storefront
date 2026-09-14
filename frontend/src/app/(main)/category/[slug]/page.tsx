@@ -176,7 +176,7 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
       >
         {/* We use Configure to strictly filter by category_slug for this page */}
         {/* @ts-expect-error hitsPerPage is a valid search parameter but TS types are overly strict here */}
-        <Configure hitsPerPage={12} filters={`category_slug = '${slug}'`} />
+        <Configure hitsPerPage={12} filters={`category_slug:'${slug}'`} />
         
         {/* Sticky Sort Bar */}
         <div className="sticky top-0 z-40 backdrop-blur-md bg-background/80 border-b border-border/40 py-4 shadow-sm">
@@ -186,8 +186,8 @@ export default function CategoryPage({ params }: { params: Promise<{ slug: strin
               <SortBy
                 items={[
                   { label: 'Relevance', value: 'products' },
-                  { label: 'Price: Low to High', value: 'products:price:asc' },
-                  { label: 'Price: High to Low', value: 'products:price:desc' },
+                  { label: 'Price: Low to High', value: 'products_price_asc' },
+                  { label: 'Price: High to Low', value: 'products_price_desc' },
                 ]}
                 classNames={{
                   root: 'w-64',

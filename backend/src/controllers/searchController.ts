@@ -1,23 +1,18 @@
 import { Request, Response } from 'express';
-import { meiliClient } from '../lib/meilisearch';
+import { algoliaClient } from '../lib/algolia';
 
 export const searchProducts = async (req: Request, res: Response) => {
     try {
-        // The request query has already been validated and parsed by Zod middleware
-        // so we can safely cast req.query (or access req.body if it was a POST, but for GET it's req.query)
-        // Wait, validateRequest middleware typically replaces req.body.
-        // For GET requests with query strings, validateRequest should parse req.query.
-        // We will assume req.query holds the validated payload.
         const queryParams: any = req.query;
 
         const { q, limit, offset, categoryId, minPrice, maxPrice } = queryParams;
 
         // Build filter array
         const filters: string[] = [];
-        filters.push('is_active = true');
+        filters.push('is_active:true');
 
         if (categoryId) {
-            filters.push(`category_id = "${categoryId}"`);
+            filters.push(`category_id:"${categoryId}"`);
         }
         if (minPrice !== undefined) {
             filters.push(`price >= ${minPrice}`);
@@ -28,21 +23,24 @@ export const searchProducts = async (req: Request, res: Response) => {
 
         const filterString = filters.join(' AND ');
 
-        // Perform search against Meilisearch
-        const index = meiliClient.index('products');
-        
+        // Perform search against Algolia
+        const index = algoliaClient.initIndex('products');
+
+        const hitsPerPage = Number(limit) || 20;
+        const page = Math.floor((Number(offset) || 0) / hitsPerPage);
+
         const searchRes = await index.search(q || '', {
-            limit: Number(limit) || 20,
-            offset: Number(offset) || 0,
-            filter: filterString,
+            hitsPerPage,
+            page,
+            filters: filterString,
             facets: ['category_id'] // Always ask for category facets
         });
 
         return res.json({
             hits: searchRes.hits,
-            estimatedTotalHits: searchRes.estimatedTotalHits,
-            facets: searchRes.facetDistribution,
-            processingTimeMs: searchRes.processingTimeMs
+            estimatedTotalHits: searchRes.nbHits,
+            facets: searchRes.facets,
+            processingTimeMs: searchRes.processingTimeMS
         });
     } catch (error) {
         console.error('Search API Error:', error);
@@ -54,13 +52,14 @@ export const supabaseWebhook = async (req: Request, res: Response) => {
     try {
         // Supabase Database Webhook payload format
         const payload = req.body;
-        const index = meiliClient.index('products');
+        const index = algoliaClient.initIndex('products');
 
         if (payload.type === 'INSERT' || payload.type === 'UPDATE') {
             const record = payload.record;
-            // Map to Meilisearch document format
+            // Map to Algolia document format
             const doc = {
-                id: record.id,
+                objectID: record.id,
+                id: record.id, // Retain original id for frontend compatibility
                 category_id: record.category_id,
                 name: record.name,
                 slug: record.slug,
@@ -72,11 +71,11 @@ export const supabaseWebhook = async (req: Request, res: Response) => {
                 is_active: record.is_active,
                 created_at: new Date(record.created_at).getTime()
             };
-            await index.addDocuments([doc]);
+            await index.saveObject(doc);
             console.log(`[Search Webhook] Upserted product ${record.id}`);
         } else if (payload.type === 'DELETE') {
             const oldRecord = payload.old_record;
-            await index.deleteDocument(oldRecord.id);
+            await index.deleteObject(oldRecord.id);
             console.log(`[Search Webhook] Deleted product ${oldRecord.id}`);
         }
 

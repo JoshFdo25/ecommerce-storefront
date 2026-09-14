@@ -190,8 +190,8 @@ function SearchContent() {
               <SortBy
                 items={[
                   { label: 'Relevance', value: 'products' },
-                  { label: 'Price: Low to High', value: 'products:price:asc' },
-                  { label: 'Price: High to Low', value: 'products:price:desc' },
+                  { label: 'Price: Low to High', value: 'products_price_asc' },
+                  { label: 'Price: High to Low', value: 'products_price_desc' },
                 ]}
                 classNames={{
                   root: 'w-64',

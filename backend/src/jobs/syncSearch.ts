@@ -1,14 +1,12 @@
 import { db } from '../db';
 import { products, categories } from '../db/schema';
 import { eq, sql } from 'drizzle-orm';
-import { meiliClient, setupMeiliIndex } from '../lib/meilisearch';
+import { algoliaClient } from '../lib/algolia';
 
 export async function syncAllProductsToSearch() {
   try {
-    console.log('Starting full product sync to Meilisearch...');
+    console.log('Starting full product sync to Algolia...');
     
-    await setupMeiliIndex();
-
     // Fetch all products with their categories
     const allProducts = await db
       .select({
@@ -24,15 +22,15 @@ export async function syncAllProductsToSearch() {
       return;
     }
 
-    // 1. Fetch dynamic attribute keys for Meilisearch facets
+    // 1. Fetch dynamic attribute keys for Algolia facets
     const uniqueKeysResult = await db.execute(
       sql`SELECT DISTINCT jsonb_object_keys(attributes) as key FROM products WHERE attributes IS NOT NULL`
     );
     const dynamicAttributeKeys = uniqueKeysResult.rows.map((row: any) => row.key);
 
-    const index = meiliClient.index('products');
+    const index = algoliaClient.initIndex('products');
     
-    // 2. Dynamically update Meilisearch filterable attributes
+    // 2. Update Algolia Index Settings & Replicas
     const standardFilterableAttributes = [
       'category_id',
       'category_name',
@@ -41,16 +39,63 @@ export async function syncAllProductsToSearch() {
       'is_active',
       'stock_quantity'
     ];
-    await index.updateFilterableAttributes([
+    
+    const attributesForFaceting = [
       ...standardFilterableAttributes,
       ...dynamicAttributeKeys
-    ]);
-    console.log(`Updated filterable attributes with dynamic keys: ${dynamicAttributeKeys.join(', ')}`);
+    ];
+    
+    await index.setSettings({
+      attributesForFaceting: attributesForFaceting,
+      searchableAttributes: [
+        'name',
+        'description',
+        'category_name'
+      ],
+      replicas: [
+        'products_price_asc',
+        'products_price_desc'
+      ]
+    });
+    console.log(`Updated attributesForFaceting with dynamic keys: ${dynamicAttributeKeys.join(', ')}`);
 
-    // 3. Map Drizzle products to Meilisearch docs
+    // 3. Configure Replica Indices
+    const replicaAsc = algoliaClient.initIndex('products_price_asc');
+    await replicaAsc.setSettings({
+      ranking: [
+        'asc(price)',
+        'typo',
+        'geo',
+        'words',
+        'filters',
+        'proximity',
+        'attribute',
+        'exact',
+        'custom'
+      ]
+    });
+    
+    const replicaDesc = algoliaClient.initIndex('products_price_desc');
+    await replicaDesc.setSettings({
+      ranking: [
+        'desc(price)',
+        'typo',
+        'geo',
+        'words',
+        'filters',
+        'proximity',
+        'attribute',
+        'exact',
+        'custom'
+      ]
+    });
+    console.log('Configured Replica Indices for sorting.');
+
+    // 4. Map Drizzle products to Algolia docs (must include objectID)
     const docs = allProducts.map(({ product: p, categoryName, categorySlug }) => {
       const baseDoc = {
-        id: p.id,
+        objectID: p.id, // Algolia strictly requires objectID
+        id: p.id, // Retain original id for frontend compatibility
         category_id: p.categoryId,
         category_name: categoryName,
         category_slug: categorySlug,
@@ -75,11 +120,11 @@ export async function syncAllProductsToSearch() {
       };
     });
 
-    const response = await index.addDocuments(docs);
-    console.log(`Pushed ${docs.length} products to Meilisearch. Task UID: ${response.taskUid}`);
+    const response = await index.saveObjects(docs);
+    console.log(`Pushed ${docs.length} products to Algolia.`);
     
   } catch (error) {
-    console.error('Failed to sync products to Meilisearch:', error);
+    console.error('Failed to sync products to Algolia:', error);
   }
 }
 
