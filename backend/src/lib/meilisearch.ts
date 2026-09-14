@@ -13,13 +13,7 @@ export const meiliClient = new Meilisearch({
 export async function setupMeiliIndex() {
   const index = meiliClient.index('products');
   
-  // Set filterable attributes for faceted search
-  await index.updateFilterableAttributes([
-    'category_id',
-    'category_name',
-    'price',
-    'is_active'
-  ]);
+  // Filterable attributes are now set dynamically in jobs/syncSearch.ts
   
   // Set sortable attributes
   await index.updateSortableAttributes([

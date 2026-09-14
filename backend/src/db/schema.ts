@@ -30,7 +30,8 @@ export const categories = pgTable('categories', {
     id: uuid('id').primaryKey().defaultRandom(),
     name: varchar('name', { length: 100 }).notNull(),
     slug: varchar('slug', { length: 100 }).unique().notNull(),
-    parentId: uuid('parent_id')
+    parentId: uuid('parent_id'),
+    imageUrl: varchar('image_url', { length: 255 })
 });
 
 export const products = pgTable('products', {
