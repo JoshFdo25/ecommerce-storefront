@@ -50,6 +50,14 @@ export const searchProducts = async (req: Request, res: Response) => {
 
 export const supabaseWebhook = async (req: Request, res: Response) => {
     try {
+        const webhookSecret = process.env.SUPABASE_WEBHOOK_SECRET;
+        const providedSecret = req.headers['x-webhook-secret'];
+
+        if (webhookSecret && providedSecret !== webhookSecret) {
+            console.warn('[Search Webhook] Unauthorized attempt.');
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
+
         // Supabase Database Webhook payload format
         const payload = req.body;
         const index = algoliaClient.initIndex('products');
