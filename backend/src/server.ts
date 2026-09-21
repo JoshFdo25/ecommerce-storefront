@@ -40,10 +40,9 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 
-// Rate Limiting (Using basic memory store. With Upstash we could drop in rate-limit-redis)
 const apiLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // Limit each IP to 100 requests per `window`
+    max: process.env.NODE_ENV === 'development' ? 10000 : 1000, // 1000 requests per IP per 15 mins
     standardHeaders: true,
     legacyHeaders: false,
 });

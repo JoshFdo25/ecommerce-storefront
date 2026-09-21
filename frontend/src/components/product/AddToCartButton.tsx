@@ -18,44 +18,49 @@ interface AddToCartButtonProps {
 }
 
 export function AddToCartButton({ product }: AddToCartButtonProps) {
-  const { addItem, setIsOpen } = useCartStore();
+  const { addToCart, setIsOpen, items } = useCartStore();
   const [isAdding, setIsAdding] = useState(false);
 
   const [quantity, setQuantity] = useState(1);
 
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (product.stock_quantity <= 0) {
       toast.error('Product is out of stock');
+      return;
+    }
+
+    const existingCartItem = items.find(item => item.product_id === product.id);
+    if (existingCartItem && existingCartItem.quantity + quantity > product.stock_quantity) {
+      toast.error('Cannot add more of this item', {
+        description: `You already have ${existingCartItem.quantity} in your cart, and only ${product.stock_quantity} are available.`
+      });
       return;
     }
 
     setIsAdding(true);
     
-    const item = {
-      product_id: product.id,
-      name: product.name,
-      price: product.price,
-      quantity: quantity,
-      image_url: Array.isArray(product.images) && product.images.length > 0 ? product.images[0] : 'https://via.placeholder.com/400'
-    };
-
-    addItem(item);
-    
-    toast.success('Added to cart', {
-      description: `${quantity}x ${product.name} - ${formatCurrency(product.price * quantity)}`,
-    });
-
-    setIsOpen(true);
-    setTimeout(() => setIsAdding(false), 500);
+    try {
+      await addToCart(product.id, quantity);
+      
+      toast.success('Added to cart', {
+        description: `${quantity}x ${product.name} - ${formatCurrency(product.price * quantity)}`,
+      });
+    } catch (error: any) {
+      toast.error('Failed to add item', {
+        description: error.response?.data?.error || 'Please try again later.'
+      });
+    } finally {
+      setIsAdding(false);
+    }
   };
 
-  const handleBuyNow = () => {
+  const handleBuyNow = async () => {
     if (product.stock_quantity <= 0) {
       toast.error('Product is out of stock');
       return;
     }
-    handleAddToCart();
-    // In a real app, this would redirect to checkout
+    await handleAddToCart();
+    window.location.href = '/checkout';
   };
 
   return (
@@ -92,7 +97,18 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
           disabled={product.stock_quantity <= 0 || isAdding}
         >
           <ShoppingCart className="mr-2 h-5 w-5" />
-          {product.stock_quantity > 0 ? (isAdding ? 'Adding...' : 'Add to Cart') : 'Out of Stock'}
+          {product.stock_quantity > 0 ? (
+            isAdding ? (
+              <span className="flex items-center">
+                Adding
+                <span className="flex gap-0.5 ml-1 items-end h-3">
+                  <span className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-1 h-1 bg-current rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                </span>
+              </span>
+            ) : 'Add to Cart'
+          ) : 'Out of Stock'}
         </Button>
         
         {product.stock_quantity > 0 && (

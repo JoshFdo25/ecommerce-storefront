@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { addItem, getCart } from '../controllers/cartController';
+import { addItem, getCart, updateItem, removeItem, clearCart } from '../controllers/cartController';
 import { validateRequest } from '../middleware/validate';
 import { CartMutationSchema } from '../schemas';
 import { requireAuth } from '../middleware/auth';
@@ -22,5 +22,8 @@ const optionalAuth = (req: any, res: any, next: any) => {
 
 router.post('/add', optionalAuth, validateRequest(CartMutationSchema), addItem);
 router.get('/', optionalAuth, getCart);
+router.put('/update', optionalAuth, validateRequest(CartMutationSchema), updateItem);
+router.delete('/remove/:productId', optionalAuth, removeItem);
+router.delete('/clear', optionalAuth, clearCart);
 
 export default router;

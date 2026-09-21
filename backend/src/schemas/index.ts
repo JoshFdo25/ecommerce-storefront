@@ -18,7 +18,8 @@ export const LoginSchema = z.object({
     email: z.string().email(),
     password: z.string(),
     guestSessionId: z.string().optional(),
-    cfToken: z.string().optional()
+    cfToken: z.string().optional(),
+    paymentIntentId: z.string().optional()
 }).strict();
 
 export const ForgotPasswordSchema = z.object({
@@ -29,7 +30,8 @@ export const ForgotPasswordSchema = z.object({
 export const VerifyEmailSchema = z.object({
     email: z.string().email(),
     otp: z.string().length(6),
-    guestSessionId: z.string().optional()
+    guestSessionId: z.string().optional(),
+    paymentIntentId: z.string().optional()
 }).strict();
 
 export const ResetPasswordSchema = z.object({
@@ -56,12 +58,15 @@ export const CartMutationSchema = z.object({
 export const CheckoutSchema = z.object({
     guestSessionId: z.string().optional(),
     shippingAddress: z.object({
-        line1: z.string(),
-        line2: z.string().optional(),
+        email: z.string().email(),
+        firstName: z.string(),
+        lastName: z.string(),
+        mobile: z.string(),
+        addressLine1: z.string(),
         city: z.string(),
         state: z.string(),
         postalCode: z.string(),
-        country: z.string()
+        saveInfo: z.boolean().optional()
     })
     // Note: totalAmount is deliberately EXCLUDED to prevent payload manipulation. 
     // The server calculates the price dynamically.

@@ -17,9 +17,10 @@ import {
 import { GlobalSearch } from './GlobalSearch';
 import { MobileMenu } from './MobileMenu';
 import { useEffect, useState, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export function Header({ categories = [] }: { categories?: any[] }) {
-  const { items, setIsOpen } = useCartStore();
+  const { items, setIsOpen, fetchCart } = useCartStore();
   const { isAuthenticated, user, logout } = useAuthStore();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -44,9 +45,10 @@ export function Header({ categories = [] }: { categories?: any[] }) {
 
   useEffect(() => {
     setMounted(true);
-  }, []);
+    fetchCart();
+  }, [fetchCart]);
 
-  const totalItems = items.reduce((acc, item) => acc + item.quantity, 0);
+  const totalItems = items.length;
 
   return (
     <header className="sticky top-0 z-50 w-full">
@@ -157,14 +159,25 @@ export function Header({ categories = [] }: { categories?: any[] }) {
 
           <Button variant="ghost" size="icon" className="relative" onClick={() => setIsOpen(true)}>
             <ShoppingCart className="h-5 w-5" />
-            {mounted && totalItems > 0 && (
-              <Badge
-                variant="destructive"
-                className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-[10px]"
-              >
-                {totalItems}
-              </Badge>
-            )}
+            <AnimatePresence mode="popLayout">
+              {mounted && totalItems > 0 && (
+                <motion.div
+                  key={totalItems}
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  exit={{ scale: 0.5, opacity: 0 }}
+                  transition={{ type: 'spring', stiffness: 500, damping: 15 }}
+                  className="absolute -top-1 -right-1"
+                >
+                  <Badge
+                    variant="destructive"
+                    className="h-5 w-5 flex items-center justify-center p-0 text-[10px]"
+                  >
+                    {totalItems}
+                  </Badge>
+                </motion.div>
+              )}
+            </AnimatePresence>
             <span className="sr-only">Cart</span>
           </Button>
 

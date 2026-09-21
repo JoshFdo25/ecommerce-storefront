@@ -77,3 +77,36 @@ export const uploadAvatar = async (req: Request, res: Response): Promise<void> =
     res.status(500).json({ error: 'Internal server error during upload.' });
   }
 };
+
+export const getProfile = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { users } = await import('../db/schema');
+    const profile = await db.select({
+      firstName: userProfiles.firstName,
+      lastName: userProfiles.lastName,
+      phone: userProfiles.phone,
+      avatarUrl: userProfiles.avatarUrl,
+      email: users.email
+    })
+    .from(userProfiles)
+    .innerJoin(users, eq(userProfiles.userId, users.id))
+    .where(eq(userProfiles.userId, userId))
+    .limit(1);
+
+    if (profile.length === 0) {
+      res.status(404).json({ error: 'Profile not found' });
+      return;
+    }
+
+    res.json(profile[0]);
+  } catch (error) {
+    console.error('Error fetching profile:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};

@@ -70,16 +70,28 @@ export const createCheckoutSession = async (req: Request, res: Response) => {
             }
 
             // Create Pending Order
-            const [order] = await tx.execute(sql`
+            const orderRes = await tx.execute(sql`
                 INSERT INTO orders (user_id, total_amount, shipping_address, status)
-                VALUES (${userId || null}, ${totalAmount}, ${JSON.stringify(shippingAddress)}, 'pending')
+                VALUES (${userId || null}, ${totalAmount}, ${JSON.stringify(shippingAddress)}::jsonb, 'pending')
                 RETURNING id
             `);
+            const order = orderRes.rows[0];
 
             for (const pItem of processedItems) {
                 await tx.execute(sql`
                     INSERT INTO order_items (order_id, product_id, product_name_at_purchase, quantity, price_at_purchase)
                     VALUES (${order.id}, ${pItem.product.id}, ${pItem.product.name}, ${pItem.quantity}, ${pItem.product.price})
+                `);
+            }
+
+            // Save info to user profile if requested
+            if (userId && shippingAddress.saveInfo) {
+                await tx.execute(sql`
+                    UPDATE user_profiles
+                    SET first_name = ${shippingAddress.firstName || null},
+                        last_name = ${shippingAddress.lastName || null},
+                        phone = ${shippingAddress.mobile || null}
+                    WHERE user_id = ${userId}
                 `);
             }
 
@@ -146,6 +158,7 @@ export const stripeWebhook = async (req: Request, res: Response) => {
                     `);
                 }
             });
+            console.log(`✅ Successfully processed webhook for Order: ${orderId}`);
         }
 
         await db.execute(sql`UPDATE stripe_events SET status = 'processed' WHERE id = ${event.id}`);

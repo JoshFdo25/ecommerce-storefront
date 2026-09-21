@@ -79,7 +79,7 @@ export const getCart = async (req: Request, res: Response) => {
             // Using withUserTransaction ensures RLS policies apply!
             const items = await withUserTransaction(req.user.id, async (tx) => {
                 const result = await tx.execute(sql`
-                    SELECT ci.quantity, p.id as product_id, p.name, p.price, p.stock_quantity
+                    SELECT ci.quantity, p.id as product_id, p.name, p.price, p.stock_quantity, p.images
                     FROM cart_items ci
                     JOIN products p ON ci.product_id = p.id
                     WHERE ci.user_id = ${req.user!.id}
@@ -103,7 +103,8 @@ export const getCart = async (req: Request, res: Response) => {
                 id: products.id,
                 name: products.name,
                 price: products.price,
-                stock: products.stockQuantity
+                stock: products.stockQuantity,
+                images: products.images
             }).from(products).where(inArray(products.id, productIds));
 
             const enrichedCart = productDetails.map(p => ({
@@ -111,6 +112,7 @@ export const getCart = async (req: Request, res: Response) => {
                 name: p.name,
                 price: p.price,
                 stock_quantity: p.stock,
+                images: p.images,
                 quantity: JSON.parse(rawItems[p.id]).quantity
             }));
 
@@ -122,4 +124,88 @@ export const getCart = async (req: Request, res: Response) => {
     }
 };
 
-// You would also implement updateItem, removeItem, clearCart similarly...
+export const updateItem = async (req: Request, res: Response) => {
+    try {
+        const { item } = req.body; // { productId, quantity }
+
+        if (req.user) {
+            let finalQty = 0;
+            await withUserTransaction(req.user.id, async (tx) => {
+                const productRes = await tx.execute(sql`SELECT stock_quantity FROM products WHERE id = ${item.productId} FOR UPDATE`);
+                const stock = productRes.rows[0]?.stock_quantity || 0;
+
+                if (item.quantity <= 0) {
+                    await tx.execute(sql`DELETE FROM cart_items WHERE user_id = ${req.user!.id} AND product_id = ${item.productId}`);
+                } else {
+                    finalQty = Math.min(item.quantity, stock);
+                    await tx.execute(sql`
+                        UPDATE cart_items SET quantity = ${finalQty}
+                        WHERE user_id = ${req.user!.id} AND product_id = ${item.productId}
+                    `);
+                }
+            });
+            return res.json({ success: true, updatedItem: { product_id: item.productId, quantity: finalQty } });
+        } else {
+            const guestSessionId = getOrGenerateGuestSessionId(req);
+            const redisKey = `guest_cart:${guestSessionId}`;
+            let finalQty = 0;
+
+            if (item.quantity <= 0) {
+                await redisClient.hdel(redisKey, item.productId);
+            } else {
+                const [product] = await db.select({ stock: products.stockQuantity }).from(products).where(eq(products.id, item.productId)).limit(1);
+                finalQty = Math.min(item.quantity, product?.stock || 0);
+                await redisClient.hset(redisKey, item.productId, JSON.stringify({ quantity: finalQty }));
+                await redisClient.expire(redisKey, 7 * 24 * 60 * 60);
+            }
+            return res.json({ guestSessionId, success: true, updatedItem: { product_id: item.productId, quantity: finalQty } });
+        }
+    } catch (error) {
+        console.error('Cart Update Error:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const removeItem = async (req: Request, res: Response) => {
+    try {
+        const { productId } = req.params;
+
+        if (req.user) {
+            await withUserTransaction(req.user.id, async (tx) => {
+                await tx.execute(sql`DELETE FROM cart_items WHERE user_id = ${req.user!.id} AND product_id = ${productId}`);
+            });
+            return res.json({ success: true });
+        } else {
+            const guestSessionId = req.query.guestSessionId as string || req.body.guestSessionId;
+            if (guestSessionId) {
+                const redisKey = `guest_cart:${guestSessionId}`;
+                await redisClient.hdel(redisKey, productId);
+            }
+            return res.json({ success: true });
+        }
+    } catch (error) {
+        console.error('Cart Remove Error:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};
+
+export const clearCart = async (req: Request, res: Response) => {
+    try {
+        if (req.user) {
+            await withUserTransaction(req.user.id, async (tx) => {
+                await tx.execute(sql`DELETE FROM cart_items WHERE user_id = ${req.user!.id}`);
+            });
+            return res.json({ success: true });
+        } else {
+            const guestSessionId = req.query.guestSessionId as string || req.body.guestSessionId;
+            if (guestSessionId) {
+                const redisKey = `guest_cart:${guestSessionId}`;
+                await redisClient.del(redisKey);
+            }
+            return res.json({ success: true });
+        }
+    } catch (error) {
+        console.error('Cart Clear Error:', error);
+        return res.status(500).json({ error: 'Internal Server Error' });
+    }
+};

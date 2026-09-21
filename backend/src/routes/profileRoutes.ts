@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { requireAuth } from '../middleware/auth';
-import { uploadAvatar } from '../controllers/profileController';
+import { uploadAvatar, getProfile } from '../controllers/profileController';
 
 const router = Router();
 
@@ -12,5 +12,6 @@ const upload = multer({
 });
 
 router.post('/avatar', requireAuth(), upload.single('avatar'), uploadAvatar);
+router.get('/', requireAuth(), getProfile);
 
 export default router;

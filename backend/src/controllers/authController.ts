@@ -71,7 +71,7 @@ export const register = async (req: Request, res: Response) => {
 
 export const verifyEmail = async (req: Request, res: Response) => {
     try {
-        const { email, otp, guestSessionId } = req.body;
+        const { email, otp, guestSessionId, paymentIntentId } = req.body;
 
         const pendingStr = await redisClient.get(`pending_user:${email}`);
         if (!pendingStr) {
@@ -94,6 +94,15 @@ export const verifyEmail = async (req: Request, res: Response) => {
                 firstName: firstName || null,
                 lastName: lastName || null,
             });
+
+            // Link specific guest order if requested
+            if (paymentIntentId) {
+                await tx.execute(sql`
+                    UPDATE orders 
+                    SET user_id = ${user.id} 
+                    WHERE stripe_payment_intent_id = ${paymentIntentId} AND shipping_address->>'email' = ${email} AND user_id IS NULL
+                `);
+            }
 
             return user;
         });
@@ -146,7 +155,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
 
 export const login = async (req: Request, res: Response) => {
     try {
-        const { email, password, guestSessionId } = req.body;
+        const { email, password, guestSessionId, paymentIntentId } = req.body;
 
         const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1);
 
@@ -163,6 +172,15 @@ export const login = async (req: Request, res: Response) => {
 
         const hashedToken = crypto.createHash('sha256').update(refreshToken).digest('hex');
         await redisClient.set(`refresh_token:${user.id}`, hashedToken, 'EX', 1209600);
+
+        // Link specific guest order if requested
+        if (paymentIntentId) {
+            await db.execute(sql`
+                UPDATE orders 
+                SET user_id = ${user.id} 
+                WHERE stripe_payment_intent_id = ${paymentIntentId} AND shipping_address->>'email' = ${email} AND user_id IS NULL
+            `);
+        }
 
         // Guest Cart Migration logic utilizing the RLS context wrapper
         if (guestSessionId) {

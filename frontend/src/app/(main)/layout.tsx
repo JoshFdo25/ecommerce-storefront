@@ -14,6 +14,8 @@ async function getCategories() {
   }
 }
 
+import { CartSheet } from "@/components/cart/CartSheet";
+
 export default async function MainLayout({
   children,
 }: Readonly<{
@@ -24,6 +26,7 @@ export default async function MainLayout({
   return (
     <>
       <Header categories={categories} />
+      <CartSheet />
       <main className="flex-1">{children}</main>
       <Footer />
     </>

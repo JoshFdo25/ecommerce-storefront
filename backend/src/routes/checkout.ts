@@ -18,6 +18,6 @@ const optionalAuth = (req: Request, res: Response, next: any) => {
     next();
 };
 
-router.post('/create', optionalAuth, validateRequest(CheckoutSchema), createCheckoutSession);
+router.post('/', optionalAuth, validateRequest(CheckoutSchema), createCheckoutSession);
 
 export default router;
