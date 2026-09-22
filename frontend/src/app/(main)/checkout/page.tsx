@@ -43,6 +43,9 @@ export default function CheckoutPage() {
   const [orderId, setOrderId] = useState<string | null>(null);
   const [submittedEmail, setSubmittedEmail] = useState<string>('');
   const [isInitializing, setIsInitializing] = useState(false);
+  
+  const [savedAddresses, setSavedAddresses] = useState<any[]>([]);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchCart();
@@ -65,16 +68,64 @@ export default function CheckoutPage() {
     if (isAuthenticated) {
       apiClient.get('/profile').then(res => {
         const p = res.data;
-        reset({
-          email: p.email || '',
-          firstName: p.firstName || '',
-          lastName: p.lastName || '',
-          mobile: p.phone || '',
-          saveInfo: false
-        });
+        if (p.shippingAddress && Array.isArray(p.shippingAddress) && p.shippingAddress.length > 0) {
+          setSavedAddresses(p.shippingAddress);
+          const defaultAddr = p.shippingAddress.find((a: any) => a.isDefault) || p.shippingAddress[0];
+          setSelectedAddressId(defaultAddr.id);
+          reset({
+            email: p.email || '',
+            firstName: defaultAddr.firstName || p.firstName || '',
+            lastName: defaultAddr.lastName || p.lastName || '',
+            mobile: defaultAddr.mobile || p.phone || '',
+            addressLine1: defaultAddr.addressLine1 || '',
+            city: defaultAddr.city || '',
+            state: defaultAddr.state || '',
+            postalCode: defaultAddr.postalCode || '',
+            saveInfo: false
+          });
+        } else {
+          reset({
+            email: p.email || '',
+            firstName: p.firstName || '',
+            lastName: p.lastName || '',
+            mobile: p.phone || '',
+            saveInfo: false
+          });
+        }
       }).catch(console.error);
     }
   }, [isAuthenticated, reset]);
+
+  const handleAddressSelect = (id: string) => {
+    if (id === 'new') {
+      setSelectedAddressId('new');
+      reset(prev => ({
+        ...prev,
+        addressLine1: '',
+        city: '',
+        state: '',
+        postalCode: '',
+        saveInfo: true
+      }));
+      return;
+    }
+    
+    const addr = savedAddresses.find(a => a.id === id);
+    if (addr) {
+      setSelectedAddressId(id);
+      reset(prev => ({
+        ...prev,
+        firstName: addr.firstName,
+        lastName: addr.lastName,
+        mobile: addr.mobile,
+        addressLine1: addr.addressLine1,
+        city: addr.city,
+        state: addr.state,
+        postalCode: addr.postalCode,
+        saveInfo: false
+      }));
+    }
+  };
 
   const onSubmitShipping = async (data: ShippingFormValues) => {
     setIsInitializing(true);
@@ -201,6 +252,44 @@ export default function CheckoutPage() {
           {!clientSecret ? (
             <div className="bg-white p-8 rounded-2xl shadow-sm border">
               <h2 className="text-xl font-semibold mb-6">Shipping Details</h2>
+              
+              {savedAddresses.length > 0 && (
+                <div className="mb-8 space-y-3">
+                  <Label className="text-neutral-500">Select a saved address</Label>
+                  <div className="grid grid-cols-1 gap-3">
+                    {savedAddresses.map(addr => (
+                      <div 
+                        key={addr.id}
+                        onClick={() => handleAddressSelect(addr.id)}
+                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                          selectedAddressId === addr.id 
+                            ? 'border-black bg-neutral-50' 
+                            : 'border-neutral-200 hover:border-neutral-300'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="font-semibold">{addr.label}</span>
+                          {selectedAddressId === addr.id && <div className="w-4 h-4 bg-black rounded-full" />}
+                        </div>
+                        <p className="text-sm text-neutral-600">{addr.firstName} {addr.lastName}</p>
+                        <p className="text-sm text-neutral-600">{addr.addressLine1}, {addr.city}</p>
+                      </div>
+                    ))}
+                    <div 
+                      onClick={() => handleAddressSelect('new')}
+                      className={`p-4 rounded-lg border-2 cursor-pointer transition-all flex items-center gap-2 ${
+                        selectedAddressId === 'new' 
+                          ? 'border-black bg-neutral-50' 
+                          : 'border-neutral-200 hover:border-neutral-300 text-neutral-500'
+                      }`}
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span className="font-medium">Use a new address</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <form onSubmit={handleSubmit(onSubmitShipping)} className="space-y-4">
                 
                 <div className="space-y-1">

@@ -22,6 +22,7 @@ export const userProfiles = pgTable('user_profiles', {
     lastName: varchar('last_name', { length: 100 }),
     phone: varchar('phone', { length: 50 }),
     avatarUrl: varchar('avatar_url', { length: 255 }),
+    shippingAddress: jsonb('shipping_address'), // Array of addresses
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow(),
 });

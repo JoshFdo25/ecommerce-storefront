@@ -15,6 +15,13 @@
       "when": 1788618972160,
       "tag": "0001_glossy_aqueduct",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790020231136,
+      "tag": "0002_brainy_northstar",
+      "breakpoints": true
     }
   ]
 }

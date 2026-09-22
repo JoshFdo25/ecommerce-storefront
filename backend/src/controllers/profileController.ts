@@ -56,20 +56,22 @@ export const uploadAvatar = async (req: Request, res: Response): Promise<void> =
       return;
     }
 
-    // Get public URL
+    // Get public URL and append a timestamp to bust browser cache
     const { data: { publicUrl } } = supabase
       .storage
       .from('avatars')
       .getPublicUrl(fileName);
 
+    const cacheBustedUrl = `${publicUrl}?t=${new Date().getTime()}`;
+
     // 4. Update Database
     await db.update(userProfiles)
-      .set({ avatarUrl: publicUrl, updatedAt: new Date() })
+      .set({ avatarUrl: cacheBustedUrl, updatedAt: new Date() })
       .where(eq(userProfiles.userId, userId));
 
     res.status(200).json({
       message: 'Avatar updated successfully',
-      avatarUrl: publicUrl
+      avatarUrl: cacheBustedUrl
     });
 
   } catch (error) {
@@ -92,6 +94,7 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
       lastName: userProfiles.lastName,
       phone: userProfiles.phone,
       avatarUrl: userProfiles.avatarUrl,
+      shippingAddress: userProfiles.shippingAddress,
       email: users.email
     })
     .from(userProfiles)
@@ -107,6 +110,73 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
     res.json(profile[0]);
   } catch (error) {
     console.error('Error fetching profile:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const updateProfile = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { firstName, lastName, phone, shippingAddress } = req.body;
+
+    await db.update(userProfiles)
+      .set({ 
+        firstName, 
+        lastName, 
+        phone, 
+        shippingAddress, 
+        updatedAt: new Date() 
+      })
+      .where(eq(userProfiles.userId, userId));
+
+    res.json({ success: true, message: 'Profile updated successfully' });
+  } catch (error) {
+    console.error('Error updating profile:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+export const getOrders = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    const { orders, orderItems, products } = await import('../db/schema');
+    const { desc, eq } = await import('drizzle-orm');
+
+    // Fetch orders for this user
+    const userOrders = await db.select()
+      .from(orders)
+      .where(eq(orders.userId, userId))
+      .orderBy(desc(orders.createdAt));
+
+    // For each order, fetch items with product images
+    const enrichedOrders = await Promise.all(userOrders.map(async (order) => {
+      const items = await db.select({
+        id: orderItems.id,
+        productId: orderItems.productId,
+        productNameAtPurchase: orderItems.productNameAtPurchase,
+        quantity: orderItems.quantity,
+        priceAtPurchase: orderItems.priceAtPurchase,
+        images: products.images
+      })
+        .from(orderItems)
+        .leftJoin(products, eq(orderItems.productId, products.id))
+        .where(eq(orderItems.orderId, order.id));
+      return { ...order, items };
+    }));
+
+    res.json(enrichedOrders);
+  } catch (error) {
+    console.error('Error fetching orders:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };

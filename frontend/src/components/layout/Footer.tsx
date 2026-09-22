@@ -1,6 +1,18 @@
+'use client';
+
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 export function Footer() {
+  const pathname = usePathname();
+  
+  // Hide the footer on app-like dashboard pages to maximize focus and screen real estate
+  const isAppRoute = pathname?.startsWith('/profile') || pathname?.startsWith('/dashboard');
+
+  if (isAppRoute) {
+    return null;
+  }
+
   return (
     <footer className="w-full border-t bg-background">
       <div className="container mx-auto px-4 py-8 md:py-12">
