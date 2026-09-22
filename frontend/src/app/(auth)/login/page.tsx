@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Turnstile } from '@marsidev/react-turnstile';
 import { Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 
@@ -17,10 +17,13 @@ import { apiClient } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { useCartStore } from '@/store/cart';
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get('callbackUrl');
   const setAuth = useAuthStore((state) => state.setAuth);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const logout = useAuthStore((state) => state.logout);
   const getGuestSessionId = useCartStore((state) => state.getGuestSessionId);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -29,10 +32,15 @@ export default function LoginPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    if (isAuthenticated) {
+    if (callbackUrl) {
+      // If there's a callbackUrl, it means the middleware intercepted a protected route
+      // and redirected here because the cookie was missing/expired. 
+      // We should clear any stale Zustand state so the UI (like Avatar) correctly reflects the logged-out status.
+      logout();
+    } else if (isAuthenticated) {
       router.replace('/dashboard');
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, callbackUrl, logout]);
   const {
     register,
     handleSubmit,
@@ -60,10 +68,16 @@ export default function LoginPage() {
       
       setAuth(response.data.user);
       
-      // If a guest cart was merged, you might want to refetch the cart here from backend
-      // But for now, we just redirect
+      // Prevent Open Redirect attacks by ensuring the callbackUrl is a relative path
+      const safeCallbackUrl = (callbackUrl && callbackUrl.startsWith('/') && !callbackUrl.startsWith('//')) 
+        ? callbackUrl 
+        : '/dashboard';
+        
+      // Use window.location.href to force a hard navigation.
+      // This bypasses the Next.js client-side router cache, ensuring that the 
+      // newly set cookie is sent to the server for the proxy.ts middleware to validate.
       toast.success('Successfully logged in!');
-      router.push('/dashboard');
+      window.location.href = safeCallbackUrl;
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to login');
     } finally {
@@ -164,5 +178,13 @@ export default function LoginPage() {
           </Link>
         </div>
     </motion.div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex h-[400px] items-center justify-center"><div className="animate-pulse">Loading...</div></div>}>
+      <LoginContent />
+    </Suspense>
   );
 }

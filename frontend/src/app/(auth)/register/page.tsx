@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Turnstile } from '@marsidev/react-turnstile';
 import { Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 
@@ -22,10 +22,13 @@ import { apiClient } from '@/lib/api';
 import { useAuthStore } from '@/store/auth';
 import { useCartStore } from '@/store/cart';
 
-export default function RegisterPage() {
+function RegisterContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get('callbackUrl');
   const setAuth = useAuthStore((state) => state.setAuth);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const logout = useAuthStore((state) => state.logout);
   const getGuestSessionId = useCartStore((state) => state.getGuestSessionId);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -37,10 +40,12 @@ export default function RegisterPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    if (isAuthenticated) {
+    if (callbackUrl) {
+      logout();
+    } else if (isAuthenticated) {
       router.replace('/dashboard');
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, callbackUrl, logout]);
 
   const {
     register,
@@ -125,7 +130,13 @@ export default function RegisterPage() {
       setAuth(response.data.user);
       
       toast.success('Account created successfully!');
-      router.push('/dashboard');
+      
+      // Prevent Open Redirect attacks by ensuring the callbackUrl is a relative path
+      const safeCallbackUrl = (callbackUrl && callbackUrl.startsWith('/') && !callbackUrl.startsWith('//')) 
+        ? callbackUrl 
+        : '/dashboard';
+        
+      window.location.href = safeCallbackUrl;
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Invalid verification code');
     } finally {
@@ -304,5 +315,13 @@ export default function RegisterPage() {
           </Link>
         </div>
     </motion.div>
+  );
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<div className="flex h-[400px] items-center justify-center"><div className="animate-pulse">Loading...</div></div>}>
+      <RegisterContent />
+    </Suspense>
   );
 }
