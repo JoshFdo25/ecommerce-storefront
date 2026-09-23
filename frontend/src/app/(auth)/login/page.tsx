@@ -71,7 +71,7 @@ function LoginContent() {
       // Prevent Open Redirect attacks by ensuring the callbackUrl is a relative path
       const safeCallbackUrl = (callbackUrl && callbackUrl.startsWith('/') && !callbackUrl.startsWith('//')) 
         ? callbackUrl 
-        : '/dashboard';
+        : '/';
         
       // Use window.location.href to force a hard navigation.
       // This bypasses the Next.js client-side router cache, ensuring that the 

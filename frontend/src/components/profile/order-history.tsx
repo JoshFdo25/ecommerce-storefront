@@ -113,6 +113,48 @@ export function OrderHistory() {
     );
   }
 
+  const renderOrderDetails = (order: Order) => (
+    <div className="p-4 md:pl-8 md:border-l-4 md:border-l-primary bg-muted/30 md:bg-transparent">
+      <h4 className="font-semibold text-sm mb-3">Order Items</h4>
+      <div className="space-y-3">
+        {order.items.length > 0 ? order.items.map((item) => (
+          <div key={item.id} className="flex justify-between items-center text-sm">
+            <div className="flex gap-4 items-center">
+              <div className="relative w-12 h-12 bg-neutral-50 border rounded-md flex items-center justify-center overflow-hidden">
+                {item.images && item.images.length > 0 ? (
+                  <Image
+                    src={item.images[0]}
+                    alt={item.productNameAtPurchase || 'Product image'}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 640px) 48px, 48px"
+                  />
+                ) : (
+                  <span className="text-[10px] text-muted-foreground">No Image</span>
+                )}
+              </div>
+              <div>
+                <p className="font-medium">{item.productNameAtPurchase}</p>
+                <p className="text-muted-foreground text-xs">Qty: {item.quantity} × {formatCurrency(item.priceAtPurchase)}</p>
+              </div>
+            </div>
+            <div className="font-semibold">
+              {formatCurrency(item.priceAtPurchase * item.quantity)}
+            </div>
+          </div>
+        )) : (
+          <p className="text-sm text-muted-foreground">No items found for this order.</p>
+        )}
+      </div>
+      <div className="mt-4 pt-4 border-t text-sm">
+        <span className="font-medium">Shipping Address: </span>
+        <span className="text-muted-foreground">
+          {order.shippingAddress?.addressLine1}, {order.shippingAddress?.city}
+        </span>
+      </div>
+    </div>
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -120,7 +162,8 @@ export function OrderHistory() {
         <CardDescription>View your recent orders and their status.</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="rounded-md border">
+        {/* Desktop View */}
+        <div className="hidden md:block rounded-md border">
           <Table>
             <TableHeader>
               <TableRow>
@@ -161,45 +204,7 @@ export function OrderHistory() {
                             transition={{ duration: 0.3, ease: "easeInOut" }}
                             className="overflow-hidden"
                           >
-                            <div className="p-4 pl-8 border-l-4 border-l-primary">
-                              <h4 className="font-semibold text-sm mb-3">Order Items</h4>
-                              <div className="space-y-3">
-                                {order.items.length > 0 ? order.items.map((item) => (
-                                  <div key={item.id} className="flex justify-between items-center text-sm">
-                                    <div className="flex gap-4 items-center">
-                                      <div className="relative w-12 h-12 bg-neutral-50 border rounded-md flex items-center justify-center overflow-hidden">
-                                        {item.images && item.images.length > 0 ? (
-                                          <Image
-                                            src={item.images[0]}
-                                            alt={item.productNameAtPurchase || 'Product image'}
-                                            fill
-                                            className="object-cover"
-                                            sizes="(max-width: 640px) 48px, 48px"
-                                          />
-                                        ) : (
-                                          <span className="text-[10px] text-muted-foreground">No Image</span>
-                                        )}
-                                      </div>
-                                      <div>
-                                        <p className="font-medium">{item.productNameAtPurchase}</p>
-                                        <p className="text-muted-foreground text-xs">Qty: {item.quantity} × {formatCurrency(item.priceAtPurchase)}</p>
-                                      </div>
-                                    </div>
-                                    <div className="font-semibold">
-                                      {formatCurrency(item.priceAtPurchase * item.quantity)}
-                                    </div>
-                                  </div>
-                                )) : (
-                                  <p className="text-sm text-muted-foreground">No items found for this order.</p>
-                                )}
-                              </div>
-                              <div className="mt-4 pt-4 border-t text-sm">
-                                <span className="font-medium">Shipping Address: </span>
-                                <span className="text-muted-foreground">
-                                  {order.shippingAddress?.addressLine1}, {order.shippingAddress?.city}
-                                </span>
-                              </div>
-                            </div>
+                            {renderOrderDetails(order)}
                           </motion.div>
                         </TableCell>
                       </TableRow>
@@ -209,6 +214,48 @@ export function OrderHistory() {
               ))}
             </TableBody>
           </Table>
+        </div>
+
+        {/* Mobile View */}
+        <div className="md:hidden space-y-4">
+          {orders.map((order) => (
+            <div key={`mobile-${order.id}`} className="border rounded-lg overflow-hidden bg-card">
+              <div 
+                className="p-4 cursor-pointer hover:bg-muted/50 transition-colors"
+                onClick={() => toggleExpand(order.id)}
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <p className="font-medium text-sm">Order #{order.id.split('-')[0]}</p>
+                    <p className="text-xs text-muted-foreground">{new Date(order.createdAt).toLocaleDateString()}</p>
+                  </div>
+                  {getStatusBadge(order.status)}
+                </div>
+                <div className="flex justify-between items-center mt-4">
+                  <p className="font-semibold">{formatCurrency(order.totalAmount)}</p>
+                  {expandedOrderId === order.id ? (
+                    <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  )}
+                </div>
+              </div>
+              
+              <AnimatePresence initial={false}>
+                {expandedOrderId === order.id && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: "easeInOut" }}
+                    className="overflow-hidden border-t"
+                  >
+                    {renderOrderDetails(order)}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          ))}
         </div>
       </CardContent>
     </Card>

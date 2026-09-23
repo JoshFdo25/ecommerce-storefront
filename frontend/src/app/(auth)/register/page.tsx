@@ -134,7 +134,7 @@ function RegisterContent() {
       // Prevent Open Redirect attacks by ensuring the callbackUrl is a relative path
       const safeCallbackUrl = (callbackUrl && callbackUrl.startsWith('/') && !callbackUrl.startsWith('//')) 
         ? callbackUrl 
-        : '/dashboard';
+        : '/profile?onboarding=true';
         
       window.location.href = safeCallbackUrl;
     } catch (error: any) {
